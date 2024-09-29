@@ -1,7 +1,31 @@
-.build_testing
-.build_staging
-.build_production
+services:
+  - docker:25.0-dind
 
-.deploy_testing
-.deploy_staging
-.deploy_production
+variables:
+  #  DOCKER_HOST: tcp://localhost:2375/
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+
+
+stages:
+  - test
+  - build
+  - deploy
+
+test:
+  stage: test
+  image: golang:1.23
+  script:
+    - go test ./...
+
+build_server:
+  image: docker:25.0.0-alpine3.19
+  stage: build
+  only:
+    - develop
+    - main
+  before_script:
+    - apk update
+  script:
+    - apk add --update git
+    - docker build -t loyalty:latest -f build/docker/Dockerfile.server .
