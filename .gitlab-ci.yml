@@ -1,0 +1,2 @@
+include:
+  - local: 'build/ci/gitlab/loyalty.yml'

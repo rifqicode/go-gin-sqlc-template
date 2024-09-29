@@ -1,0 +1,7 @@
+.build_testing
+.build_staging
+.build_production
+
+.deploy_testing
+.deploy_staging
+.deploy_production
