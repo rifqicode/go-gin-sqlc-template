@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"gitlab.gift.id/lv2/loyalty/cmd/server"
+	logger "gitlab.gift.id/lv2/loyalty/pkg/logger/zap"
 )
 
 var rootCmd = &cobra.Command{
@@ -26,7 +26,8 @@ var RunServerCmd = &cobra.Command{
 		appServer, err := server.NewApp()
 
 		if err != nil {
-			fmt.Println("error initialize server", err)
+			logger.Error("Failed to initialize loyalty server", map[string]interface{}{"error": err.Error()})
+			return
 		}
 
 		go func() {
@@ -34,18 +35,24 @@ var RunServerCmd = &cobra.Command{
 			signal.Notify(quitSign, syscall.SIGINT, syscall.SIGTERM)
 
 			<-quitSign
-			fmt.Println("shuting down server...")
+			logger.Info("Received shutdown signal, initiating graceful shutdown", nil)
 
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 			defer cancel()
 
 			if err := appServer.Stop(ctx); err != nil {
-				fmt.Println("error shutdown server: %v", err)
+				logger.Error("Failed to gracefully shut down loyalty server", map[string]interface{}{
+					"error":   err.Error(),
+					"timeout": "15s",
+				})
+			} else {
+				logger.Info("Loyalty server shut down successfully", nil)
 			}
 		}()
 
+		logger.Info("Starting loyalty server", nil)
 		if err := appServer.Run(); err != nil {
-			fmt.Println("error running server", err)
+			logger.Error("Loyalty server encountered an error and stopped", map[string]interface{}{"error": err.Error()})
 		}
 	},
 }
@@ -56,7 +63,10 @@ func init() {
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		logger.Error("Failed to execute loyalty command", map[string]interface{}{
+			"error":   err.Error(),
+			"command": rootCmd.Use,
+		})
 		os.Exit(1)
 	}
 }
