@@ -23,9 +23,9 @@ env
 
 # binary build
 main
-server
 loyalty
 __debug_bin
 tmp/
 
 .DS_Store
+/internal/db

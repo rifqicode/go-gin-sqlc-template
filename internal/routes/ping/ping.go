@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"gitlab.gift.id/lv2/loyalty/configs/shared"
+	"gitlab.gift.id/lv2/loyalty/internal/db"
 )
 
 type PingResponse struct {
@@ -21,12 +21,19 @@ type PingResponse struct {
 // @Produce json
 // @Success 200 {object} PingResponse
 // @Router /ping [get]
-func GetHandler(meta *shared.SharedMeta) gin.HandlerFunc {
+func GetHandler(query *db.Queries) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		dbConnected := meta.DB.Ping(ctx) == nil
+		_, err := query.CheckDBConnection(ctx)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, PingResponse{
+				Alive:       false,
+				DBConnected: false,
+			})
+		}
+
 		r := PingResponse{
 			Alive:       true,
-			DBConnected: dbConnected,
+			DBConnected: true,
 		}
 		ctx.JSON(http.StatusOK, r)
 	}

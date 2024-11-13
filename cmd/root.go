@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 	"gitlab.gift.id/lv2/loyalty/cmd/server"
 	logger "gitlab.gift.id/lv2/loyalty/pkg/logger/zap"
@@ -23,6 +24,11 @@ var RunServerCmd = &cobra.Command{
 	Short:   "Running the server",
 	Example: "loyalty run-server",
 	Run: func(cmd *cobra.Command, args []string) {
+		err := godotenv.Load()
+		if err != nil {
+			logger.Fatal("Error loading .env file")
+		}
+
 		appServer, err := server.NewApp()
 
 		if err != nil {

@@ -8,21 +8,27 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"gitlab.gift.id/lv2/loyalty/configs/shared"
-	"gitlab.gift.id/lv2/loyalty/internal/datasources/repositories/postgres"
+	"github.com/jackc/pgx/v5/pgtype"
+	"gitlab.gift.id/lv2/loyalty/internal/db"
 )
 
 // Handler handles CRUD operations for server configurations
 type Handler struct {
-	meta *shared.SharedMeta
-	repo *postgres.ServerConfigRepository
+	queries *db.Queries
+}
+
+// ServerConfig represents the server configuration stored in the database
+type ServerConfigParams struct {
+	ConfigName  string `json:"config_name"`
+	Status      string `json:"status"`
+	Value       string `json:"value"`
+	Description string `json:"description"`
 }
 
 // NewHandler creates a new ServerConfigHandler
-func NewHandler(meta *shared.SharedMeta) *Handler {
+func NewHandler(query *db.Queries) *Handler {
 	return &Handler{
-		meta: meta,
-		repo: postgres.NewServerConfigRepository(meta.DB),
+		queries: query,
 	}
 }
 
@@ -39,13 +45,18 @@ func NewHandler(meta *shared.SharedMeta) *Handler {
 // @Failure 500 {object} map[string]string
 // @Router /server-config [post]
 func (h *Handler) Create(c *gin.Context) {
-	var config postgres.ServerConfig
+	var config ServerConfigParams
 	if err := c.ShouldBindJSON(&config); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	createdConfig, err := h.repo.Create(context.Background(), &config)
+	createdConfig, err := h.queries.CreateServerConfig(context.Background(), db.CreateServerConfigParams{
+		ConfigName:  config.ConfigName,
+		Status:      config.Status,
+		Value:       config.Value,
+		Description: pgtype.Text{String: config.Description, Valid: true},
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create server config"})
 		return
@@ -74,7 +85,7 @@ func (h *Handler) Get(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
 		return
 	}
-	config, err := h.repo.GetByID(context.Background(), parsedID)
+	config, err := h.queries.GetServerConfig(context.Background(), pgtype.UUID{Bytes: parsedID, Valid: true})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Server config not found"})
@@ -104,7 +115,7 @@ func (h *Handler) Get(c *gin.Context) {
 // @Router /server-config/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
 	id := c.Param("id")
-	var config postgres.ServerConfig
+	var config ServerConfigParams
 	if err := c.ShouldBindJSON(&config); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -115,9 +126,14 @@ func (h *Handler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
 		return
 	}
-	config.ID = parsedID
 
-	updatedConfig, err := h.repo.Update(context.Background(), &config)
+	updatedConfig, err := h.queries.UpdateServerConfig(context.Background(), db.UpdateServerConfigParams{
+		ID:          pgtype.UUID{Bytes: parsedID, Valid: true},
+		ConfigName:  config.ConfigName,
+		Status:      config.Status,
+		Value:       config.Value,
+		Description: pgtype.Text{String: config.Description, Valid: true},
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Server config not found"})
@@ -150,7 +166,7 @@ func (h *Handler) Delete(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
 		return
 	}
-	err = h.repo.Delete(context.Background(), parsedID)
+	_, err = h.queries.DeleteServerConfig(context.Background(), pgtype.UUID{Bytes: parsedID, Valid: true})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Server config not found"})
@@ -164,8 +180,8 @@ func (h *Handler) Delete(c *gin.Context) {
 }
 
 // SetupRoutes sets up the routes for server configuration
-func SetupRoutes(router *gin.RouterGroup, meta *shared.SharedMeta) {
-	handler := NewHandler(meta)
+func SetupRoutes(router *gin.RouterGroup, query *db.Queries) {
+	handler := NewHandler(query)
 
 	group := router.Group("/server-config")
 	{
